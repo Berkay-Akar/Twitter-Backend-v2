@@ -1,0 +1,81 @@
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres:postgres@localhost:32768/twitterV2"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model user {
+  id              Int             @id @default(autoincrement())
+  name            String
+  username        String          @unique
+  email           String          @unique
+  password        String
+  tweet_count     Int             @default(0)
+  following_count Int             @default(0)
+  followers_count Int             @default(0)
+  birthday        DateTime?
+  description     String?
+  profile_photo   String?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  tweets          tweet[]
+  likedTweets     tweet_likes[]
+  retweetedTweets tweet_retweet[]
+  followers       Follows[]       @relation("following")
+  following       Follows[]       @relation("follower")
+}
+
+model tweet {
+  id              Int             @id @default(autoincrement())
+  content         String
+  like_count      Int             @default(0)
+  retweet_count   Int             @default(0)
+  comments_count  Int             @default(0)
+  image           String?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  user            user?           @relation(fields: [user_id], references: [id])
+  user_id         Int
+  likes           tweet_likes[] // One-to-Many ilişkisi: Bir tweet'in birden fazla tweet_likes'ı olabilir.
+  retweets        tweet_retweet[] // One-to-Many ilişkisi: Bir tweet'in birden fazla retweet'i olabilir.
+  originalTweetId Int?
+  originalTweet   tweet?          @relation("replies", fields: [originalTweetId], references: [id])
+  replies         tweet[]         @relation("replies")
+}
+
+model tweet_likes {
+  id         Int      @id @default(autoincrement())
+  user       user?    @relation(fields: [user_id], references: [id])
+  user_id    Int
+  tweet      tweet?   @relation(fields: [tweet_id], references: [id])
+  tweet_id   Int
+  created_at DateTime @default(now())
+}
+
+model tweet_retweet {
+  id         Int      @id @default(autoincrement())
+  tweet      tweet?   @relation(fields: [tweet_id], references: [id])
+  tweet_id   Int
+  user       user?    @relation(fields: [user_id], references: [id])
+  user_id    Int
+  created_at DateTime @default(now())
+}
+
+// model user_followers {
+//   id           Int      @id @default(autoincrement())
+//   followers    user?    @relation(fields: [followers_id], references: [id])
+//   followers_id Int?
+//   created_at   DateTime @default(now())
+// }
+
+model Follows {
+  follower    user @relation("follower", fields: [followerId], references: [id])
+  followerId  Int
+  following   user @relation("following", fields: [followingId], references: [id])
+  followingId Int
+
+  @@id([followerId, followingId])
+}
