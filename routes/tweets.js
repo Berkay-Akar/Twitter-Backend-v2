@@ -656,9 +656,8 @@ router.get("/comment/:id", async (req, res) => {
 });
 
 // create a comment
-router.post("/reply/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
-    const tweetId = req.params.id;
     const token = req.headers.authorization.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await prisma.user.findFirst({
@@ -666,36 +665,104 @@ router.post("/reply/:id", async (req, res) => {
         id: decoded.id,
       },
     });
+
     if (!user) {
-      return res.status(401).json({ error: "User not found!" });
+      return res.status(401).json({ error: "Unauthorizated" });
     }
+    const tweetId = req.params.id;
     const tweet = await prisma.tweet.findUnique({
       where: {
         id: Number(tweetId),
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            profile_photo: true,
+            name: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                profile_photo: true,
+                name: true,
+              },
+            },
+            likes: {
+              include: {
+                user: {
+                  select: {
+                    username: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        likes: {
+          include: {
+            user: {
+              select: {
+                username: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
-    if (!tweet) {
+
+    // Modify the tweet to include likes as an object
+    const modifiedTweet = {
+      ...tweet,
+      user: {
+        ...tweet.user,
+        username: tweet.user.username,
+        name: tweet.user.name,
+      },
+      likes: tweet.likes.map((like) => ({
+        id: like.id,
+        user: {
+          username: like.user.username,
+          name: like.user.name,
+        },
+      })),
+    };
+
+    // Modify each reply to include likes as an object
+    const modifiedReplies = tweet.replies.map((reply) => ({
+      ...reply,
+      likes: reply.likes.map((like) => ({
+        id: like.id,
+        user: {
+          username: like.user.username,
+          name: like.user.name,
+        },
+      })),
+      user: {
+        ...reply.user,
+        username: reply.user.username,
+        name: reply.user.name,
+      },
+    }));
+
+    modifiedTweet.replies = modifiedReplies;
+
+    if (!modifiedTweet) {
       return res.status(401).json({ error: "Tweet not found!" });
     }
-    const comment = await prisma.tweet.create({
-      data: {
-        content: req.body.content,
-        user_id: user.id,
-        originalTweetId: Number(tweet.id),
-      },
-    });
 
-    // update comment count
-    await prisma.tweet.update({
-      where: {
-        id: Number(tweetId),
-      },
-      data: {
-        comments_count: tweet.comments_count + 1,
-      },
-    });
+    // Include "username" and "name" directly in the "tweet" object
+    modifiedTweet.username = modifiedTweet.user.username;
+    modifiedTweet.name = modifiedTweet.user.name;
 
-    res.json({ comment });
+    res.json({ tweet: modifiedTweet });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -726,32 +793,107 @@ router.get("/:id", async (req, res) => {
             id: true,
             username: true,
             profile_photo: true,
+            name: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                profile_photo: true,
+                name: true,
+              },
+            },
+            likes: {
+              include: {
+                user: {
+                  select: {
+                    username: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        likes: {
+          include: {
+            user: {
+              select: {
+                username: true,
+                name: true,
+              },
+            },
           },
         },
       },
     });
-
-    const replies = await prisma.tweet.findMany({
-      where: {
-        originalTweetId: Number(tweetId),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            profile_photo: true,
-          },
-        },
-      },
-    });
-
-    tweet.replies = replies;
 
     if (!tweet) {
       return res.status(401).json({ error: "Tweet not found!" });
     }
-    res.json({ tweet });
+
+    const modifiedTweet = {
+      ...tweet,
+      username: tweet.user.username,
+      name: tweet.user.name,
+      likes: tweet.likes.map((like) => ({
+        id: like.id,
+        user: {
+          username: like.user.username,
+          name: like.user.name,
+        },
+      })),
+    };
+
+    const modifiedReplies = tweet.replies.map((reply) => {
+      const {
+        id,
+        content,
+        like_count,
+        retweet_count,
+        comments_count,
+        image,
+        created_at,
+        updated_at,
+        user_id,
+        originalTweetId,
+        likes,
+        user,
+      } = reply;
+      return {
+        id,
+        content,
+        like_count,
+        retweet_count,
+        comments_count,
+        image,
+        created_at,
+        updated_at,
+        user_id,
+        originalTweetId,
+        likes: likes.map((like) => ({
+          id: like.id,
+          user: {
+            username: like.user.username,
+            name: like.user.name,
+          },
+        })),
+        user: {
+          ...user,
+          username: user.username,
+          name: user.name,
+        },
+        username: user.username,
+        name: user.name,
+      };
+    });
+
+    modifiedTweet.replies = modifiedReplies;
+
+    res.json({ tweet: modifiedTweet });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

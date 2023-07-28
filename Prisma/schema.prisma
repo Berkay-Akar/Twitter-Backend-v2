@@ -39,8 +39,8 @@ model tweet {
   updated_at      DateTime        @updatedAt
   user            user?           @relation(fields: [user_id], references: [id])
   user_id         Int
-  likes           tweet_likes[] // One-to-Many ilişkisi: Bir tweet'in birden fazla tweet_likes'ı olabilir.
-  retweets        tweet_retweet[] // One-to-Many ilişkisi: Bir tweet'in birden fazla retweet'i olabilir.
+  likes           tweet_likes[]
+  retweets        tweet_retweet[]
   originalTweetId Int?
   originalTweet   tweet?          @relation("replies", fields: [originalTweetId], references: [id])
   replies         tweet[]         @relation("replies")

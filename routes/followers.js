@@ -85,7 +85,7 @@ router.delete("/:followId", async (req, res) => {
     const followId = parseInt(req.params.followId);
 
     // Check if the user is actually following the specified followId
-    const existingFollow = await prisma.Follows.findFirst({
+    const existingFollow = await prisma.follows.findFirst({
       where: {
         followerId: user.id,
         followingId: followId,
@@ -98,7 +98,27 @@ router.delete("/:followId", async (req, res) => {
         .json({ error: "You are not following this user!" });
     }
 
-    const follower = await prisma.Follows.delete({
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        following_count: user.following_count - 1,
+      },
+    });
+
+    await prisma.user.update({
+      where: {
+        id: Number(followId),
+      },
+      data: {
+        followers_count: user.followers_count - 1,
+      },
+    });
+
+    console.log("existingFollow", existingFollow);
+
+    const follower = await prisma.follows.delete({
       where: {
         followerId_followingId: {
           followerId: user.id,
